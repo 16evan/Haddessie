@@ -17,7 +17,7 @@
     style.textContent = `
         #mufy-export-widget {
             position: fixed;
-            bottom: 15%;
+            bottom: 40%;
             right: 20px;
             z-index: 999999;
             font-family: sans-serif;
