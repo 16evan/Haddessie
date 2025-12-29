@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Haddes&16evan的快速回复beta
+// @name         Haddes&16evan的快速回复
 // @namespace    https://chat.mufy.ai
-// @version      1.2
+// @version      2.0
 // @description  搜索历史聊天记录关键词
 // @author       Haddes/16evan
 // @match        https://chat.mufy.ai/chat*
@@ -152,9 +152,9 @@
 
           /* Toolbar (Vertical) */
           .neo-toolbar {
-          display: flex; flex-direction: column; gap: 8px;
+          display: flex; flex-direction: column; gap: 5px;
           pointer-events: auto;
-          background: var(--bg); padding: 8px; border-radius: 20px;
+          background: var(--bg); padding: 5px; border-radius: 20px;
           border: 1px solid var(--border);
           box-shadow: 0 4px 12px rgba(0,0,0,0.08);
           backdrop-filter: blur(10px);
@@ -178,7 +178,7 @@
 
           /* Panel */
           .neo-panel {
-          width: 300px; height: 450px;
+          width: 300px; height: 400px;
           background: var(--bg); border: 1px solid var(--border);
           border-radius: 12px;
           box-shadow: 0 12px 32px rgba(0,0,0,0.15);
