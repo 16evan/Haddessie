@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         橘色暖阳鼠标指针 (终极权限版)
+// @name         自定义光标网页版beta
 // @namespace    https://chat.mufy.ai
 // @version      5.0
-// @description  利用 GM_xmlhttpRequest 绕过所有网站的防盗链和安全策略，强制显示橘色系光标，含流星特效。
+// @description  自定义小光标
 // @author       Haddes/16evan
 // @match        *://*/*
 // @grant        GM_addStyle
