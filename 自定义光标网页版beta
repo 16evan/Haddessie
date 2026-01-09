@@ -159,16 +159,6 @@
             .alias, .copy { cursor: ${get('alias')} !important; }
             .ns-resize { cursor: ${get('ns')} !important; }
 
-            /* 8. 滚动条美化 */
-            ::-webkit-scrollbar { width: 10px; height: 10px; }
-            ::-webkit-scrollbar-thumb {
-                background-color: ${COLORS.fill};
-                border: 2px solid ${COLORS.primary};
-                border-radius: 5px;
-                cursor: ${get('pointer')} !important;
-            }
-            ::-webkit-scrollbar-track { background: ${COLORS.accent}; }
-
             /* --- 特效层 --- */
             .orange-trail {
                 position: fixed; pointer-events: none; top: 0; left: 0;
