@@ -1,0 +1,244 @@
+// ==UserScript==
+// @name         橘色暖阳鼠标指针 (终极权限版)
+// @namespace    https://chat.mufy.ai
+// @version      5.0
+// @description  利用 GM_xmlhttpRequest 绕过所有网站的防盗链和安全策略，强制显示橘色系光标，含流星特效。
+// @author       Haddes/16evan
+// @match        *://*/*
+// @grant        GM_addStyle
+// @grant        GM_xmlhttpRequest
+// @connect      i.ibb.co
+// @run-at       document-start
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // ==========================================
+    // 1. 核心配置
+    // ==========================================
+    const COLORS = {
+        primary: "#C86B26",
+        fill: "#FDDDB0",
+        accent: "#FCEDD6"
+    };
+
+    // 图片源 (必须是直链)
+    const IMAGE_SOURCES = {
+        default:   { url: "https://i.ibb.co/qM6WQb7K/image.png", x: 0, y: 0 },
+        pointer:   { url: "https://i.ibb.co/RpDtdK0N/image.png", x: 0, y: 0 },
+        wait:      { url: "https://i.ibb.co/W9SsD3R/image.png", x: 16, y: 16 },
+        progress:  { url: "https://i.ibb.co/3y05ww3k/image.png", x: 0, y: 0 }, // 设为左上角更通用
+        move:      { url: "https://i.ibb.co/GvQqPKb2/image.png", x: 16, y: 16 },
+        text:      { url: "https://i.ibb.co/YBh8ftMy/image.png", x: 16, y: 16 },
+        crosshair: { url: "https://i.ibb.co/ds9xkf0y/image.png", x: 16, y: 16 },
+        alias:     { url: "https://i.ibb.co/7x9mdVyK/image.png", x: 0, y: 0 },
+        ns:        { url: "https://i.ibb.co/bcSQ7Xp/image.png", x: 16, y: 16 },
+        disabled:  { url: "https://i.ibb.co/1fQvnrsp/image.png", x: 16, y: 16 },
+        help:      { url: "https://i.ibb.co/F4WyWtfv/image.png", x: 0, y: 0 }
+    };
+
+    // 存储转换后的本地链接 (Blob URLs)
+    const cursorUrls = {};
+
+    // SVG 后备 (万一下载真的失败了)
+    const svgBackup = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><path fill="${COLORS.fill}" stroke="${COLORS.primary}" stroke-width="2" d="M12 2L2 22h20L12 2z"/></svg>') 16 16, auto`;
+
+
+    // ==========================================
+    // 2. 超级下载器 (绕过 CORS/CSP)
+    // ==========================================
+    function downloadAndProcess(key, item) {
+        return new Promise((resolve) => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: item.url,
+                responseType: "blob", // 直接下载二进制数据
+                onload: function(response) {
+                    if (response.status === 200) {
+                        // 1. 获取 Blob 数据
+                        const blob = response.response;
+
+                        // 2. 这里的关键：使用 FileReader 读取为 Base64
+                        // 相比 createObjectURL，Base64 在 CSS 中更稳定，不会过期
+                        const reader = new FileReader();
+                        reader.onloadend = function() {
+                            const base64data = reader.result;
+                            // 3. 强制压缩 (可选，防止图片过大不显示)
+                            compressBase64(base64data, item.x, item.y, (finalUrl) => {
+                                cursorUrls[key] = finalUrl;
+                                resolve();
+                            });
+                        };
+                        reader.readAsDataURL(blob);
+                    } else {
+                        console.error(`[Cursor] Download failed: ${key}`);
+                        cursorUrls[key] = svgBackup;
+                        resolve();
+                    }
+                },
+                onerror: function() {
+                    console.error(`[Cursor] Network error: ${key}`);
+                    cursorUrls[key] = svgBackup;
+                    resolve();
+                }
+            });
+        });
+    }
+
+    // 压缩图片至 32x32 (解决浏览器限制)
+    function compressBase64(base64, hotX, hotY, callback) {
+        const img = new Image();
+        img.src = base64;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, 32, 32);
+            // 生成最终的 CSS 属性值
+            const finalData = canvas.toDataURL('image/png');
+            callback(`url(${finalData}) ${hotX} ${hotY}, auto`);
+        };
+        img.onerror = () => callback(`url(${base64}) ${hotX} ${hotY}, auto`); // 压缩失败则用原图
+    }
+
+
+    // ==========================================
+    // 3. 样式注入 (最强 CSS 选择器)
+    // ==========================================
+    async function init() {
+        // 等待所有图片下载完毕
+        const downloads = Object.keys(IMAGE_SOURCES).map(key => downloadAndProcess(key, IMAGE_SOURCES[key]));
+        await Promise.all(downloads);
+
+        applyGlobalStyles();
+    }
+
+    function applyGlobalStyles() {
+        // 如果某个图标没定义，就用 default 或 pointer 顶替
+        const get = (key) => cursorUrls[key] || cursorUrls['default'];
+
+        const css = `
+            /* 1. 暴力覆盖全局 */
+            html, body {
+                cursor: ${get('default')} !important;
+            }
+
+            /* 2. 修复继承问题：强制所有元素继承光标 */
+            /* 很多网站的 div 或 span 会重置光标，这里强制它们跟随父级，除非有特殊指定 */
+            * {
+                cursor: inherit;
+            }
+
+            /* 3. 链接与交互 (最高优先级) */
+            /* 使用 :where 或 :is 增加权重，同时覆盖内部子元素 */
+            a, button, [role="button"],
+            input[type="submit"], input[type="button"],
+            .pointer, .cursor-pointer,
+            a *, button *, [role="button"] * {
+                cursor: ${get('pointer')} !important;
+            }
+
+            /* 4. 文本输入 */
+            input[type="text"], textarea, [contenteditable="true"], .text-cursor {
+                cursor: ${get('text')} !important;
+            }
+
+            /* 5. 忙碌/后台 (如果没有定义图标，使用默认) */
+            .wait, [aria-busy="true"] { cursor: ${get('wait')} !important; }
+            .progress { cursor: ${get('progress')} !important; }
+
+            /* 6. 功能性图标 */
+            .move, [draggable="true"] { cursor: ${get('move')} !important; }
+            .crosshair { cursor: ${get('crosshair')} !important; }
+            :disabled, .disabled, [aria-disabled="true"] { cursor: ${get('disabled')} !important; }
+
+            /* 7. 帮助与提示 */
+            .help, [title], [data-tooltip] { cursor: ${get('help')} !important; }
+            .alias, .copy { cursor: ${get('alias')} !important; }
+            .ns-resize { cursor: ${get('ns')} !important; }
+
+            /* 8. 滚动条美化 */
+            ::-webkit-scrollbar { width: 10px; height: 10px; }
+            ::-webkit-scrollbar-thumb {
+                background-color: ${COLORS.fill};
+                border: 2px solid ${COLORS.primary};
+                border-radius: 5px;
+                cursor: ${get('pointer')} !important;
+            }
+            ::-webkit-scrollbar-track { background: ${COLORS.accent}; }
+
+            /* --- 特效层 --- */
+            .orange-trail {
+                position: fixed; pointer-events: none; top: 0; left: 0;
+                z-index: 2147483647; font-size: 14px; will-change: transform, opacity;
+                text-shadow: 0 0 4px rgba(255, 200, 100, 0.8);
+            }
+            .orange-ripple {
+                position: fixed; border-radius: 50%;
+                background: rgba(253, 221, 176, 0.5); border: 1px solid ${COLORS.primary};
+                transform: translate(-50%, -50%) scale(0); pointer-events: none;
+                z-index: 2147483647;
+            }
+        `;
+
+        if (typeof GM_addStyle !== "undefined") {
+            GM_addStyle(css);
+        } else {
+            const style = document.createElement("style");
+            style.textContent = css;
+            document.head.appendChild(style);
+        }
+    }
+
+    // 启动下载和注入
+    init();
+
+
+    // ==========================================
+    // 4. 特效逻辑 (流畅不卡顿版)
+    // ==========================================
+    let lastTime = 0;
+    document.addEventListener('mousemove', function(e) {
+        if (Date.now() - lastTime < 18) return;
+        lastTime = Date.now();
+
+        const span = document.createElement('span');
+        span.className = 'orange-trail';
+        span.textContent = ['✦', '•', '✨'][Math.floor(Math.random() * 3)];
+        span.style.color = Math.random() > 0.5 ? COLORS.primary : COLORS.fill;
+        span.style.left = e.clientX + 'px';
+        span.style.top = e.clientY + 'px';
+
+        const size = Math.random() * 8 + 8;
+        span.style.fontSize = `${size}px`;
+        const angle = Math.random() * 360;
+        const dist = Math.random() * 20 + 5;
+
+        document.body.appendChild(span);
+
+        const anim = span.animate([
+            { transform: `translate(-50%, -50%) scale(1) rotate(0deg)`, opacity: 0.9 },
+            { transform: `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px)) scale(0) rotate(${angle}deg)`, opacity: 0 }
+        ], { duration: 600, easing: 'cubic-bezier(0, .9, .57, 1)' });
+
+        anim.onfinish = () => span.remove();
+    }, { passive: true });
+
+    document.addEventListener('mousedown', function(e) {
+        const ripple = document.createElement('div');
+        ripple.className = 'orange-ripple';
+        ripple.style.left = e.clientX + 'px';
+        ripple.style.top = e.clientY + 'px';
+        document.body.appendChild(ripple);
+
+        const anim = ripple.animate([
+            { width: '0px', height: '0px', opacity: 0.8, borderWidth: '2px' },
+            { width: '50px', height: '50px', opacity: 0, borderWidth: '0px' }
+        ], { duration: 450, easing: 'ease-out' });
+
+        anim.onfinish = () => ripple.remove();
+    });
+
+})();
