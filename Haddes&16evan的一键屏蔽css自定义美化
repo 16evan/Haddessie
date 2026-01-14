@@ -1,0 +1,161 @@
+// ==UserScript==
+// @name         Haddes&16evan的一键屏蔽css自定义美化
+// @namespace    https://chat.mufy.ai/
+// @version      2.0
+// @description  智能区分系统CSS和创作者自定义CSS，一键屏蔽高耗能特效（动画/背景/阴影），保留网页基础功能布局。
+// @author       Haddes/16evan
+// @match        https://chat.mufy.ai/chat*
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_registerMenuCommand
+// @run-at       document-idle
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // === 配置区域 ===
+    const TEXT_ON = "🚀";
+    const TEXT_OFF = "🎨";
+    // ================
+
+    let isOptimized = false;
+    let performanceStyleElement = null;
+
+    // 创建悬浮按钮
+    const toggleBtn = document.createElement('div');
+    toggleBtn.innerText = TEXT_ON;
+
+    // 按钮样式
+    Object.assign(toggleBtn.style, {
+        position: 'fixed',
+        left: '0px',
+        top: '35%',
+        zIndex: '2147483647',
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        color: '#fff',
+        padding: '5px 10px',
+        fontSize: '13px',
+        fontWeight: 'bold',
+        borderRadius: '0 20px 20px 0',
+        cursor: 'pointer',
+        userSelect: 'none',
+        boxShadow: '2px 2px 8px rgba(0,0,0,0.2)',
+        backdropFilter: 'blur(4px)',
+        transition: 'transform 0.1s'
+    });
+    document.body.appendChild(toggleBtn);
+
+    // === 核心修复：更新后的强制降级样式 ===
+    const performanceCSS = `
+        /* 1. 全局禁用高耗能属性 */
+        *:not([class*="translate-x-[-50%]"]) {
+            /* 注意：这里稍微放宽了一点，防止误伤定位元素，但在下面专门处理动画 */
+            /* 如果不是居中定位元素，强制移除 transform */
+            /* 但为了更稳妥，我们主要针对动画和阴影 */
+        }
+
+        /* 强制停止所有动画、过渡、阴影、滤镜 */
+        * {
+            animation: none !important;
+            transition: none !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+            filter: none !important;
+            backdrop-filter: none !important;
+        }
+
+        /* 2. 针对普通元素，移除 transform 以节省性能 */
+        /* 但排除掉那些带有 translate-x-[-50%] 的元素（即弹窗） */
+        *:not([class*="translate-x-[-50%]"]):not([class*="translate-y-[-50%]"]) {
+            transform: none !important;
+        }
+
+        /* 3. 【核心修复】强制修正弹窗位置 */
+        /* 只要元素包含这两个类名，就强制应用居中位移，覆盖上面的 none */
+        [class*="translate-x-[-50%]"][class*="translate-y-[-50%]"] {
+            transform: translate(-50%, -50%) !important;
+            /* 确保在开启屏蔽时，弹窗依然在最上层 */
+            z-index: 2147483646 !important;
+            /* 给个深色背景确保能看清内容 */
+            background-color: #222 !important;
+            border: 1px solid #444 !important;
+        }
+
+        /* 4. 移除背景图 */
+        body, html, div, section, main, article {
+            background-image: none !important;
+        }
+
+        /* 5. 护眼背景色 */
+        body {
+            background-color: #f5f5f5 !important;
+            color: #333 !important;
+        }
+    `;
+
+    // 点击事件
+    toggleBtn.addEventListener('click', function() {
+        isOptimized = !isOptimized;
+
+        if (isOptimized) {
+            // === 开启屏蔽模式 ===
+
+            if (!performanceStyleElement) {
+                performanceStyleElement = document.createElement('style');
+                performanceStyleElement.innerHTML = performanceCSS;
+                document.head.appendChild(performanceStyleElement);
+            } else {
+                performanceStyleElement.disabled = false;
+            }
+
+            // 智能屏蔽 <style> 标签
+            for (let i = 0; i < document.styleSheets.length; i++) {
+                let sheet = document.styleSheets[i];
+                let owner = sheet.ownerNode;
+
+                if (owner.tagName === 'STYLE' && owner !== performanceStyleElement && owner !== toggleBtn) {
+                    try {
+                         if (!sheet.disabled) {
+                            sheet.disabled = true;
+                            owner.setAttribute('data-blocked-by-script', 'true');
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            toggleBtn.innerText = TEXT_OFF;
+            toggleBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+
+        } else {
+            // === 恢复原状 ===
+            if (performanceStyleElement) {
+                performanceStyleElement.disabled = true;
+            }
+
+            for (let i = 0; i < document.styleSheets.length; i++) {
+                let sheet = document.styleSheets[i];
+                let owner = sheet.ownerNode;
+
+                if (owner.getAttribute('data-blocked-by-script') === 'true') {
+                    sheet.disabled = false;
+                    owner.removeAttribute('data-blocked-by-script');
+                }
+            }
+
+            toggleBtn.innerText = TEXT_ON;
+            toggleBtn.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        }
+    });
+
+    // 触摸优化
+    toggleBtn.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+        toggleBtn.style.transform = 'scale(0.95)';
+    }, {passive: false});
+
+    toggleBtn.addEventListener('touchend', () => {
+        toggleBtn.style.transform = 'scale(1)';
+    });
+
+})();
